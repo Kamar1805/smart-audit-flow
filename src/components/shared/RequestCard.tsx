@@ -75,14 +75,25 @@ export function RequestCard({
           </div>
 
           {showDetails && request.memo && (
-            <div className="mt-4 p-3 bg-secondary/50 rounded-lg">
-              <div className="flex items-center gap-2 mb-2">
-                <FileText className="h-4 w-4 text-muted-foreground" />
-                <span className="font-body text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Justification Memo
-                </span>
+            <div className="mt-4 p-4 bg-card border border-border rounded-lg shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-lg bg-accent-red/10 flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-accent-red" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-body text-sm font-medium text-foreground">
+                      Justification_Memo.pdf
+                    </span>
+                    <span className="font-body text-xs text-muted-foreground">
+                      {request.memoFile ? request.memoFile : 'AI Generated'}
+                    </span>
+                  </div>
+                  <p className="font-body text-xs text-muted-foreground line-clamp-2">
+                    {request.memo}
+                  </p>
+                </div>
               </div>
-              <p className="font-body text-sm text-foreground">{request.memo}</p>
             </div>
           )}
 

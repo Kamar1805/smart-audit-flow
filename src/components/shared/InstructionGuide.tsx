@@ -16,7 +16,7 @@ const instructions: Record<UserRole, { title: string; description: string }> = {
   procurement: {
     title: 'Procurement Officer',
     description:
-      'Review incoming requests and verify pricing. Our AI system automatically flags price anomalies. Approve to send to Audit or Reject with a reason.',
+      'Review incoming requests and verify if the items are actually needed by the department. Approve to send to Audit or Reject with a reason.',
   },
   audit: {
     title: 'Internal Audit',
@@ -26,7 +26,7 @@ const instructions: Record<UserRole, { title: string; description: string }> = {
   finance: {
     title: 'Finance Approver',
     description:
-      'Final approval step. Upload payment receipts to complete transactions. All paid requests will display receipt information for transparency.',
+      'Check price anomalies using the detection tool before approval. Upload payment receipts to complete transactions.',
   },
 };
 

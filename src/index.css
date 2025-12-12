@@ -34,6 +34,9 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    --accent-red: 0 100% 50%;
+    --accent-red-foreground: 0 0% 100%;
+
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 220 13% 8%;
@@ -80,6 +83,9 @@
 
     --warning: 38 92% 40%;
     --warning-foreground: 0 0% 100%;
+
+    --accent-red: 0 100% 50%;
+    --accent-red-foreground: 0 0% 100%;
 
     --border: 220 13% 20%;
     --input: 220 13% 20%;
