@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -8,17 +9,11 @@ import {
   LogOut,
   Menu,
   X,
-  ChevronDown,
   Shield,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useApp, UserRole } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface DashboardLayoutProps {
@@ -29,7 +24,7 @@ interface DashboardLayoutProps {
   onViewChange: (view: string) => void;
 }
 
-const roleLabels: Record<UserRole, string> = {
+const roleLabels: Record<string, string> = {
   requester: 'Head of Department',
   procurement: 'Procurement Officer',
   audit: 'Internal Audit',
@@ -50,7 +45,8 @@ export function DashboardLayout({
   currentView,
   onViewChange,
 }: DashboardLayoutProps) {
-  const { currentRole, setCurrentRole } = useApp();
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleNavClick = (id: string) => {
@@ -60,6 +56,11 @@ export function DashboardLayout({
       onViewChange(id);
     }
     setSidebarOpen(false);
+  };
+
+  const handleLogout = () => {
+    onLogout();
+    navigate('/login');
   };
 
   const SidebarContent = () => (
@@ -94,7 +95,7 @@ export function DashboardLayout({
       {/* Logout */}
       <div className="p-4 border-t border-sidebar-border">
         <button
-          onClick={onLogout}
+          onClick={handleLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg font-body text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
         >
           <LogOut className="h-5 w-5" />
@@ -159,36 +160,22 @@ export function DashboardLayout({
             </h1>
           </div>
 
-          {/* Role Switcher */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="font-body text-sm">
-                <span className="hidden sm:inline">Role:</span>
-                <span className="font-medium ml-1">{roleLabels[currentRole]}</span>
-                <ChevronDown className="ml-2 h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-popover">
-              {(Object.keys(roleLabels) as UserRole[]).map((role) => (
-                <DropdownMenuItem
-                  key={role}
-                  onClick={() => setCurrentRole(role)}
-                  className={cn(
-                    'font-body cursor-pointer',
-                    currentRole === role && 'bg-accent'
-                  )}
-                >
-                  {roleLabels[role]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* User Info */}
+          <div className="flex items-center gap-3">
+            <div className="text-right hidden sm:block">
+              <p className="font-body text-sm font-medium text-foreground">{user?.name}</p>
+              <p className="font-body text-xs text-muted-foreground">{user?.role && roleLabels[user.role]}</p>
+            </div>
+            <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
+              <User className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </div>
         </header>
 
         {/* Page Content */}
         <main className="flex-1 p-4 lg:p-8 overflow-auto">
           <motion.div
-            key={currentView + currentRole}
+            key={currentView}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
