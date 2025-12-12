@@ -102,8 +102,13 @@ const initialRequests: ProcurementRequest[] = [
   },
 ];
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const [currentRole, setCurrentRole] = useState<UserRole>('requester');
+interface AppProviderProps {
+  children: ReactNode;
+  initialRole?: UserRole;
+}
+
+export function AppProvider({ children, initialRole = 'requester' }: AppProviderProps) {
+  const [currentRole, setCurrentRole] = useState<UserRole>(initialRole);
   const [requests, setRequests] = useState<ProcurementRequest[]>(initialRequests);
 
   const addRequest = (request: Omit<ProcurementRequest, 'id' | 'createdAt'>) => {
