@@ -29,9 +29,9 @@ export function LandingPage() {
 
   const workflowSteps = [
     { role: 'Requester', action: 'Submit Request', description: 'Department heads create procurement requests with AI-generated memos' },
-    { role: 'Procurement', action: 'Price Verification', description: 'Officers verify pricing and approve for audit' },
+    { role: 'Procurement', action: 'Need Verification', description: 'Officers verify if the items are actually needed by the requester' },
     { role: 'Audit', action: 'Compliance Check', description: 'Automated compliance scoring and risk assessment' },
-    { role: 'Finance', action: 'Payment Approval', description: 'Final approval and payment processing' },
+    { role: 'Finance', action: 'Price & Payment', description: 'Price anomaly detection and payment approval' },
   ];
 
   return (
@@ -264,7 +264,7 @@ export function LandingPage() {
             </span>
           </div>
           <p className="font-body text-sm text-muted-foreground">
-            © 2024 SAPS. All rights reserved.
+            © 2025 TechZ. All rights reserved.
           </p>
         </div>
       </footer>

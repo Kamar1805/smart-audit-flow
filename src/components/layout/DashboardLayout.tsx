@@ -22,6 +22,7 @@ interface DashboardLayoutProps {
   onLogout: () => void;
   currentView: string;
   onViewChange: (view: string) => void;
+  showNewRequest?: boolean;
 }
 
 const roleLabels: Record<string, string> = {
@@ -44,10 +45,15 @@ export function DashboardLayout({
   onLogout,
   currentView,
   onViewChange,
+  showNewRequest = false,
 }: DashboardLayoutProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  const filteredNavItems = navItems.filter(item => 
+    item.id !== 'new-request' || showNewRequest
+  );
 
   const handleNavClick = (id: string) => {
     if (id === 'new-request') {
@@ -75,7 +81,7 @@ export function DashboardLayout({
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map((item) => (
+        {filteredNavItems.map((item) => (
           <button
             key={item.id}
             onClick={() => handleNavClick(item.id)}

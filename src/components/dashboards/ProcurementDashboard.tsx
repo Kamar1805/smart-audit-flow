@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, X, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Check, X, ClipboardCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InstructionGuide } from '@/components/shared/InstructionGuide';
 import { RequestCard } from '@/components/shared/RequestCard';
@@ -16,12 +16,11 @@ export function ProcurementDashboard() {
   const handleApprove = (request: ProcurementRequest) => {
     updateRequest(request.id, {
       status: 'PENDING_AUDIT',
-      priceVerified: request.price < 1000,
       complianceScore: Math.floor(Math.random() * 15) + 85,
       aiAnalysis: {
-        budgetCode: 'Valid - OPEX-2024',
+        budgetCode: 'Valid - OPEX-2025',
         vendorStatus: 'Verified Supplier',
-        riskLevel: request.price > 1000 ? 'Medium' : 'Low',
+        riskLevel: 'Low',
       },
     });
   };
@@ -35,32 +34,6 @@ export function ProcurementDashboard() {
     }
   };
 
-  const PriceAlert = ({ request }: { request: ProcurementRequest }) => {
-    const isHighPrice = request.price > 1000;
-
-    return (
-      <div
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium font-body ${
-          isHighPrice
-            ? 'bg-warning/10 text-warning border border-warning/20'
-            : 'bg-success/10 text-success border border-success/20'
-        }`}
-      >
-        {isHighPrice ? (
-          <>
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Price Variance Detected
-          </>
-        ) : (
-          <>
-            <CheckCircle className="h-3.5 w-3.5" />
-            Market Rate Verified
-          </>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div>
       <InstructionGuide role="procurement" />
@@ -70,7 +43,7 @@ export function ProcurementDashboard() {
           Pending Procurement Review
         </h2>
         <p className="font-body text-sm text-muted-foreground mt-1">
-          Review and verify pricing for incoming requests
+          Verify if requested items are actually needed by the department
         </p>
       </div>
 
@@ -93,7 +66,10 @@ export function ProcurementDashboard() {
               showDetails
               actions={
                 <div className="flex flex-col gap-2">
-                  <PriceAlert request={request} />
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium font-body bg-secondary text-foreground border border-border">
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                    Need Verification Required
+                  </div>
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
@@ -101,7 +77,7 @@ export function ProcurementDashboard() {
                       className="font-body bg-success hover:bg-success/90 text-success-foreground"
                     >
                       <Check className="mr-1.5 h-4 w-4" />
-                      Approve
+                      Approve Need
                     </Button>
                     <Button
                       size="sm"

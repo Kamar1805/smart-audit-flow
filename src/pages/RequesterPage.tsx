@@ -38,6 +38,7 @@ function RequesterContent() {
         onLogout={handleLogout}
         currentView={currentView}
         onViewChange={setCurrentView}
+        showNewRequest={true}
       >
         <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
       </DashboardLayout>

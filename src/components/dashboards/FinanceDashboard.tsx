@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, X, CreditCard } from 'lucide-react';
+import { X, CreditCard, AlertTriangle, CheckCircle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { InstructionGuide } from '@/components/shared/InstructionGuide';
 import { RequestCard } from '@/components/shared/RequestCard';
@@ -12,14 +12,20 @@ export function FinanceDashboard() {
   const { getRequestsByStatus, updateRequest } = useApp();
   const [paymentRequest, setPaymentRequest] = useState<ProcurementRequest | null>(null);
   const [rejectionRequest, setRejectionRequest] = useState<ProcurementRequest | null>(null);
+  const [priceChecked, setPriceChecked] = useState<Record<string, boolean>>({});
 
   const pendingRequests = getRequestsByStatus('PENDING_FINANCE');
+
+  const handlePriceCheck = (requestId: string) => {
+    setPriceChecked(prev => ({ ...prev, [requestId]: true }));
+  };
 
   const handlePaymentConfirm = (fileName: string) => {
     if (paymentRequest) {
       updateRequest(paymentRequest.id, {
         status: 'PAID',
         paymentReceipt: fileName,
+        priceVerified: true,
       });
     }
   };
@@ -33,6 +39,32 @@ export function FinanceDashboard() {
     }
   };
 
+  const PriceAlert = ({ request }: { request: ProcurementRequest }) => {
+    const isHighPrice = request.price > 1000;
+
+    return (
+      <div
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium font-body ${
+          isHighPrice
+            ? 'bg-warning/10 text-warning border border-warning/20'
+            : 'bg-success/10 text-success border border-success/20'
+        }`}
+      >
+        {isHighPrice ? (
+          <>
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Price Variance Detected
+          </>
+        ) : (
+          <>
+            <CheckCircle className="h-3.5 w-3.5" />
+            Market Rate Verified
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div>
       <InstructionGuide role="finance" />
@@ -42,7 +74,7 @@ export function FinanceDashboard() {
           Pending Finance Approval
         </h2>
         <p className="font-body text-sm text-muted-foreground mt-1">
-          Final approval step - upload payment receipts to complete transactions
+          Check price anomalies and upload payment receipts to complete transactions
         </p>
       </div>
 
@@ -73,11 +105,27 @@ export function FinanceDashboard() {
                       ${(request.price * request.quantity).toLocaleString()}
                     </p>
                   </div>
+                  
+                  {!priceChecked[request.id] ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handlePriceCheck(request.id)}
+                      className="font-body"
+                    >
+                      <Search className="mr-1.5 h-4 w-4" />
+                      Check Price Anomaly
+                    </Button>
+                  ) : (
+                    <PriceAlert request={request} />
+                  )}
+                  
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
                       onClick={() => setPaymentRequest(request)}
                       className="font-body bg-success hover:bg-success/90 text-success-foreground"
+                      disabled={!priceChecked[request.id]}
                     >
                       <CreditCard className="mr-1.5 h-4 w-4" />
                       Approve Payment

@@ -7,11 +7,9 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { AuditDashboard } from '@/components/dashboards/AuditDashboard';
 import { NotificationsView } from '@/components/views/NotificationsView';
 import { SettingsView } from '@/components/views/SettingsView';
-import { NewRequestModal } from '@/components/modals/NewRequestModal';
 
 function AuditContent() {
   const [currentView, setCurrentView] = useState('dashboard');
-  const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
   const { logout } = useAuth();
 
   const handleLogout = () => {
@@ -32,21 +30,15 @@ function AuditContent() {
   };
 
   return (
-    <>
-      <DashboardLayout
-        onNewRequest={() => setIsNewRequestModalOpen(true)}
-        onLogout={handleLogout}
-        currentView={currentView}
-        onViewChange={setCurrentView}
-      >
-        <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
-      </DashboardLayout>
-
-      <NewRequestModal
-        isOpen={isNewRequestModalOpen}
-        onClose={() => setIsNewRequestModalOpen(false)}
-      />
-    </>
+    <DashboardLayout
+      onNewRequest={() => {}}
+      onLogout={handleLogout}
+      currentView={currentView}
+      onViewChange={setCurrentView}
+      showNewRequest={false}
+    >
+      <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
+    </DashboardLayout>
   );
 }
 
