@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useState, useEffect, createContext, useContext } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/context/AuthContext';
 import { AppProvider } from '@/context/AppContext';
@@ -7,10 +6,32 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ProcurementDashboard } from '@/components/dashboards/ProcurementDashboard';
 import { NotificationsView } from '@/components/views/NotificationsView';
 import { SettingsView } from '@/components/views/SettingsView';
+import { NewRequestModal } from '@/components/modals/NewRequestModal';
+import { listenProcurementMemos, Memo } from '@/lib/memos';
+
+// --- 1. DEFINE CONTEXT & EXPORT HOOK (MUST BE AT TOP) ---
+type MemosCtx = { memos: Memo[]; loading: boolean };
+const ProcurementMemosContext = createContext<MemosCtx>({ memos: [], loading: true });
+
+export const useProcurementMemos = () => useContext(ProcurementMemosContext);
+// ---------------------------------------------------------
 
 function ProcurementContent() {
   const [currentView, setCurrentView] = useState('dashboard');
-  const { logout } = useAuth();
+  const [isNewRequestModalOpen, setIsNewRequestModalOpen] = useState(false);
+  const { logout } = useAuth(); // We don't need 'user' here anymore
+
+  // Firestore memos state
+  const [memos, setMemos] = useState<Memo[]>([]);
+  const [memosLoading, setMemosLoading] = useState(true);
+
+  useEffect(() => {
+    const unsub = listenProcurementMemos((list) => {
+      setMemos(list);
+      setMemosLoading(false);
+    });
+    return () => unsub();
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -30,34 +51,26 @@ function ProcurementContent() {
   };
 
   return (
-    <DashboardLayout
-      onNewRequest={() => {}}
-      onLogout={handleLogout}
-      currentView={currentView}
-      onViewChange={setCurrentView}
-      showNewRequest={false}
-    >
-      <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
-    </DashboardLayout>
+    <ProcurementMemosContext.Provider value={{ memos, loading: memosLoading }}>
+      <DashboardLayout
+        onNewRequest={() => setIsNewRequestModalOpen(true)}
+        onLogout={handleLogout}
+        currentView={currentView}
+        onViewChange={setCurrentView}
+        showNewRequest={true}
+      >
+        <AnimatePresence mode="wait">{renderView()}</AnimatePresence>
+      </DashboardLayout>
+
+      <NewRequestModal
+        isOpen={isNewRequestModalOpen}
+        onClose={() => setIsNewRequestModalOpen(false)}
+      />
+    </ProcurementMemosContext.Provider>
   );
 }
 
 export default function ProcurementPage() {
-  const { user, isAuthenticated } = useAuth();
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (user?.role !== 'procurement') {
-    const roleRoutes: Record<string, string> = {
-      requester: '/requester',
-      audit: '/audit',
-      finance: '/finance',
-    };
-    return <Navigate to={roleRoutes[user?.role || 'requester'] || '/login'} replace />;
-  }
-
   return (
     <AppProvider>
       <ProcurementContent />

@@ -28,10 +28,10 @@ export function LandingPage() {
   ];
 
   const workflowSteps = [
-    { role: 'Requester', action: 'Submit Request', description: 'Department heads create procurement requests with AI-generated memos' },
-    { role: 'Procurement', action: 'Need Verification', description: 'Officers verify if the items are actually needed by the requester' },
-    { role: 'Audit', action: 'Compliance Check', description: 'Automated compliance scoring and risk assessment' },
-    { role: 'Finance', action: 'Price & Payment', description: 'Price anomaly detection and payment approval' },
+    { role: 'Requester', action: 'Submit + Track', description: 'Create requests, attach memo, track status with progress bar' },
+    { role: 'Procurement', action: 'Verify + Vendors', description: 'Confirm need, run price anomaly checks, and find vendors' },
+    { role: 'Audit', action: 'Compliance + Policy', description: 'Upload policy PDFs, run compliance analysis, flag issues' },
+    { role: 'Finance', action: 'Budget + Payment', description: 'Review budget utilization, approve/hold/reject and attach receipts' },
   ];
 
   return (
@@ -69,31 +69,25 @@ export function LandingPage() {
         <section className="relative overflow-hidden">
           {/* Background Pattern */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
+          {/* Gradient Accent */}
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-background/30 to-background/70" />
           
-          <div className="relative max-w-7xl mx-auto px-8 py-24 lg:py-32">
+          <div className="relative max-w-7xl mx-auto px-6 sm:px-8 py-20 lg:py-32">
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
               className="text-center max-w-4xl mx-auto"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, duration: 0.5 }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary border border-border mb-8"
-              >
-                <CheckCircle className="h-4 w-4 text-success" />
-                <span className="font-body text-sm text-muted-foreground">Trusted by government agencies</span>
-              </motion.div>
+              {/* Removed trusted by government agencies badge */}
 
-              <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.1] mb-6 text-foreground">
-                Transparency in
+              <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-semibold leading-[1.05] mb-6 text-foreground">
+                Modern, Transparent
                 <br />
-                <span className="text-muted-foreground">Procurement</span>
+                <span className="text-muted-foreground">Approval & Procurement</span>
               </h1>
 
-              <p className="font-body text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
+              <p className="font-body text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
                 A smart audit and procurement system that brings clarity, 
                 compliance, and efficiency to every purchasing decision.
               </p>
@@ -102,41 +96,23 @@ export function LandingPage() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
-                className="flex flex-col sm:flex-row items-center justify-center gap-4"
+                className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4"
               >
                 <Link to="/login">
-                  <Button size="lg" className="font-body text-base px-8 py-6 group">
+                  <Button size="lg" className="font-body text-base px-8 py-6 group transition-transform duration-300 ease-out hover:translate-y-[-1px]">
                     Get Started
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
                 <a href="#workflow">
-                  <Button variant="outline" size="lg" className="font-body text-base px-8 py-6">
+                  <Button variant="outline" size="lg" className="font-body text-base px-8 py-6 transition-transform duration-300 ease-out hover:translate-y-[-1px]">
                     See How It Works
                   </Button>
                 </a>
               </motion.div>
             </motion.div>
 
-            {/* Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 40 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6, duration: 0.8 }}
-              className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 pt-12 border-t border-border"
-            >
-              {[
-                { value: '99%', label: 'Compliance Rate' },
-                { value: '50%', label: 'Faster Processing' },
-                { value: '100%', label: 'Audit Trail' },
-                { value: '24/7', label: 'System Availability' },
-              ].map((stat, index) => (
-                <div key={index} className="text-center">
-                  <p className="font-display text-3xl md:text-4xl font-semibold text-foreground">{stat.value}</p>
-                  <p className="font-body text-sm text-muted-foreground mt-1">{stat.label}</p>
-                </div>
-              ))}
-            </motion.div>
+            {/* Removed noisy stats section per request */}
           </div>
         </section>
 
@@ -197,8 +173,11 @@ export function LandingPage() {
                 Streamlined Approval Workflow
               </h2>
               <p className="font-body text-muted-foreground max-w-2xl mx-auto">
-                Each role has a dedicated dashboard with specific responsibilities
+                Each role has a dedicated dashboard with clear responsibilities across Requester, Procurement, Audit, and Finance.
               </p>
+              <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary border border-border">
+                <span className="font-body text-xs text-muted-foreground">Powered by Google Generative AI</span>
+              </div>
             </motion.div>
 
             <div className="relative">
@@ -243,12 +222,7 @@ export function LandingPage() {
               transition={{ delay: 0.6, duration: 0.5 }}
               className="text-center mt-12"
             >
-              <Link to="/login">
-                <Button size="lg" className="font-body">
-                  Try the Demo
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+              {/* Removed demo button per request */}
             </motion.div>
           </div>
         </section>

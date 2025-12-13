@@ -1,165 +1,126 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { X, CreditCard, AlertTriangle, CheckCircle, Search } from 'lucide-react';
+import { CheckCircle2, CreditCard, Wallet, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { InstructionGuide } from '@/components/shared/InstructionGuide';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { useApp } from '@/context/AppContext'; 
+import { useAuth } from '@/context/AuthContext';
 import { RequestCard } from '@/components/shared/RequestCard';
-import { PaymentReceiptModal } from '@/components/modals/PaymentReceiptModal';
-import { RejectionModal } from '@/components/modals/RejectionModal';
-import { useApp, ProcurementRequest } from '@/context/AppContext';
 
 export function FinanceDashboard() {
-  const { getRequestsByStatus, updateRequest } = useApp();
-  const [paymentRequest, setPaymentRequest] = useState<ProcurementRequest | null>(null);
-  const [rejectionRequest, setRejectionRequest] = useState<ProcurementRequest | null>(null);
-  const [priceChecked, setPriceChecked] = useState<Record<string, boolean>>({});
+  const { profile } = useAuth();
+  const { requests, updateRequest } = useApp(); 
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const pendingRequests = getRequestsByStatus('PENDING_FINANCE');
+  // --- FIX 1: Cast status to 'any' or 'string' to avoid the Type Mismatch error ---
+  // We check for 'PENDING_FINANCE' or 'APPROVED' (common statuses for Finance queues)
+  const pendingPayments = requests.filter(r => 
+    (r.status as any) === 'PENDING_FINANCE' || (r.status as any) === 'APPROVED'
+  );
+  
+  const paidRequests = requests.filter(r => r.status === 'PAID');
 
-  const handlePriceCheck = (requestId: string) => {
-    setPriceChecked(prev => ({ ...prev, [requestId]: true }));
-  };
-
-  const handlePaymentConfirm = (fileName: string) => {
-    if (paymentRequest) {
-      updateRequest(paymentRequest.id, {
-        status: 'PAID',
-        paymentReceipt: fileName,
-        priceVerified: true,
-      });
-    }
-  };
-
-  const handleReject = (reason: string) => {
-    if (rejectionRequest) {
-      updateRequest(rejectionRequest.id, {
-        status: 'REJECTED',
-        rejectionReason: `Rejected by Finance: ${reason}`,
-      });
-    }
-  };
-
-  const PriceAlert = ({ request }: { request: ProcurementRequest }) => {
-    const isHighPrice = request.price > 1000;
-
-    return (
-      <div
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium font-body ${
-          isHighPrice
-            ? 'bg-warning/10 text-warning border border-warning/20'
-            : 'bg-success/10 text-success border border-success/20'
-        }`}
-      >
-        {isHighPrice ? (
-          <>
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Price Variance Detected
-          </>
-        ) : (
-          <>
-            <CheckCircle className="h-3.5 w-3.5" />
-            Market Rate Verified
-          </>
-        )}
-      </div>
-    );
+  const handleMarkPaid = (id: string) => {
+    updateRequest(id, {
+      status: 'PAID',
+      // --- FIX 2: Cast to 'any' so we can save paymentDate without errors ---
+      paymentDate: new Date().toISOString(),
+    } as any);
   };
 
   return (
-    <div>
-      <InstructionGuide role="finance" />
-
-      <div className="mb-6">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
-          Pending Finance Approval
-        </h2>
-        <p className="font-body text-sm text-muted-foreground mt-1">
-          Check price anomalies and upload payment receipts to complete transactions
-        </p>
+    <div className="space-y-8 pb-20">
+      
+      {/* 1. Header Section */}
+      <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
+        <div className="relative z-10">
+          <h1 className="font-display text-4xl font-bold text-gray-900 mb-2">
+            Finance Overview
+          </h1>
+          <p className="font-body text-lg text-gray-500">
+            You have <span className="font-bold text-green-600">{pendingPayments.length} payments</span> pending processing.
+          </p>
+        </div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-green-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50" />
       </div>
 
-      {pendingRequests.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="text-center py-12 bg-secondary/30 rounded-lg border border-border"
-        >
-          <p className="font-body text-muted-foreground">
-            No pending finance approvals.
-          </p>
-        </motion.div>
-      ) : (
-        <div className="space-y-4">
-          {pendingRequests.map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-              showDetails
-              actions={
-                <div className="flex flex-col gap-2">
-                  <div className="p-3 bg-secondary/50 rounded-lg text-center">
-                    <p className="font-body text-xs text-muted-foreground">
-                      Total Amount
-                    </p>
-                    <p className="font-display text-xl font-semibold text-foreground">
-                      ${(request.price * request.quantity).toLocaleString()}
-                    </p>
-                  </div>
+      {/* 2. Pending Payments Section */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-display text-2xl font-semibold text-gray-800 flex items-center gap-3">
+            <Wallet className="text-green-600 h-6 w-6" />
+            Pending Payments
+          </h2>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input 
+              placeholder="Search..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 w-64 bg-white font-body"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          {pendingPayments.length === 0 ? (
+             <div className="text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+               <CreditCard className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+               <p className="text-gray-500 font-medium">No pending payments.</p>
+             </div>
+          ) : (
+            pendingPayments
+              .filter(r => r.title.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((request) => (
+                <div key={request.id} className="group relative">
+                  {/* Render the Card */}
+                  <RequestCard request={request} />
                   
-                  {!priceChecked[request.id] ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handlePriceCheck(request.id)}
-                      className="font-body"
-                    >
-                      <Search className="mr-1.5 h-4 w-4" />
-                      Check Price Anomaly
-                    </Button>
-                  ) : (
-                    <PriceAlert request={request} />
-                  )}
-                  
-                  <div className="flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => setPaymentRequest(request)}
-                      className="font-body bg-success hover:bg-success/90 text-success-foreground"
-                      disabled={!priceChecked[request.id]}
-                    >
-                      <CreditCard className="mr-1.5 h-4 w-4" />
-                      Approve Payment
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setRejectionRequest(request)}
-                      className="font-body text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      <X className="mr-1.5 h-4 w-4" />
-                      Reject
-                    </Button>
+                  {/* Action Bar */}
+                  <div className="mt-[-1rem] mx-4 p-4 pt-6 bg-gray-50 border-x border-b border-gray-100 rounded-b-xl flex justify-between items-center relative z-0">
+                     <div className="text-xs text-gray-500">
+                       <span className="font-bold">Budget Code:</span> {request.aiAnalysis?.budgetCode || 'OPEX-GEN'}
+                     </div>
+                     <Button 
+                       onClick={() => handleMarkPaid(request.id)}
+                       className="bg-green-600 hover:bg-green-700 text-white font-body shadow-sm shadow-green-200"
+                     >
+                       <CheckCircle2 className="mr-2 h-4 w-4" />
+                       Mark as Paid
+                     </Button>
                   </div>
                 </div>
-              }
-            />
-          ))}
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* 3. History / Paid */}
+      {paidRequests.length > 0 && (
+        <div className="pt-8 border-t border-gray-100">
+           <h3 className="font-display text-xl font-semibold text-gray-800 mb-6 opacity-70">Payment History</h3>
+           <div className="opacity-60 hover:opacity-100 transition-opacity space-y-3">
+             {paidRequests.map(req => (
+               <div key={req.id} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl">
+                 <div className="flex items-center gap-4">
+                   <div className="h-10 w-10 bg-green-50 text-green-600 rounded-full flex items-center justify-center">
+                     <CheckCircle2 size={20} />
+                   </div>
+                   <div>
+                     <p className="font-bold text-gray-900">{req.title}</p>
+                     <p className="text-xs text-gray-500">
+                       {/* FIX 3: Cast to any for paymentDate access */}
+                       Paid on {new Date((req as any).paymentDate || Date.now()).toLocaleDateString()}
+                     </p>
+                   </div>
+                 </div>
+                 <Badge variant="outline" className="border-green-200 text-green-700 bg-green-50">PAID</Badge>
+               </div>
+             ))}
+           </div>
         </div>
       )}
 
-      <PaymentReceiptModal
-        isOpen={!!paymentRequest}
-        onClose={() => setPaymentRequest(null)}
-        request={paymentRequest}
-        onConfirm={handlePaymentConfirm}
-      />
-
-      <RejectionModal
-        isOpen={!!rejectionRequest}
-        onClose={() => setRejectionRequest(null)}
-        request={rejectionRequest}
-        onConfirm={handleReject}
-      />
     </div>
   );
 }

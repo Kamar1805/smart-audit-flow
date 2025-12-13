@@ -7,13 +7,26 @@ import { InstructionGuide } from '@/components/shared/InstructionGuide';
 import { RequestCard } from '@/components/shared/RequestCard';
 import { RejectionModal } from '@/components/modals/RejectionModal';
 import { useApp, ProcurementRequest } from '@/context/AppContext';
+import { useCurrency } from '@/context/CurrencyContext';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+// duplicate import removed
+import { useStorage } from '@/hooks/useStorage';
+import { useToast } from '@/components/ui/use-toast';
 
 export function AuditDashboard() {
   const { getRequestsByStatus, updateRequest } = useApp();
+  const { format } = useCurrency();
+  const [quickPolicy, setQuickPolicy] = useState('');
+  const [quickAmount, setQuickAmount] = useState<number | ''>('');
+  const [policyFile, setPolicyFile] = useState<File | null>(null);
+  const { uploadFile, uploading, error } = useStorage();
+  const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [flagRequest, setFlagRequest] = useState<ProcurementRequest | null>(null);
 
   const pendingRequests = getRequestsByStatus('PENDING_AUDIT');
+  const approvedRequests = getRequestsByStatus('PAID');
 
   const handleVerify = (request: ProcurementRequest) => {
     updateRequest(request.id, {
@@ -108,6 +121,63 @@ export function AuditDashboard() {
   return (
     <div>
       <InstructionGuide role="audit" />
+      {/* Policy Upload for AI Reference */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <h3 className="font-display text-lg font-semibold mb-3">Upload Compliance Policy (PDF)</h3>
+        <p className="font-body text-sm text-muted-foreground mb-3">Store policy documents for AI reference across items.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label className="font-body text-sm">Policy Title</Label>
+            <Input value={quickPolicy} onChange={(e) => setQuickPolicy(e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label className="font-body text-sm">Policy PDF</Label>
+            <Input type="file" accept="application/pdf" className="mt-1" onChange={(e) => setPolicyFile(e.target.files?.[0] || null)} />
+          </div>
+        </div>
+        <div className="mt-3 flex gap-3">
+          <Button size="sm" className="font-body" disabled={!policyFile || uploading} onClick={async () => {
+            if (!policyFile) return;
+            const url = await uploadFile(policyFile, 'policies');
+            // TODO: persist URL to backend/db via API
+            console.log('Uploaded policy URL:', url);
+            if (url) {
+              toast({ title: 'Policy uploaded', description: 'Your policy PDF is stored for AI reference.' });
+            } else if (error) {
+              toast({ title: 'Upload failed', description: error, variant: 'destructive' });
+            }
+          }}>Upload</Button>
+          {error && <span className="text-xs text-destructive">{error}</span>}
+        </div>
+      </div>
+
+      {/* Quick Request */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-6">
+        <h3 className="font-display text-lg font-semibold mb-3">Quick Request</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label className="font-body text-sm">Policy Reference</Label>
+            <Input value={quickPolicy} onChange={(e) => setQuickPolicy(e.target.value)} className="mt-1" />
+          </div>
+          <div>
+            <Label className="font-body text-sm">Amount</Label>
+            <Input
+              type="number"
+              value={quickAmount as any}
+              onChange={(e) => setQuickAmount(e.target.value ? Number(e.target.value) : '')}
+              placeholder="Amount"
+              className="mt-1"
+            />
+            {quickAmount !== '' && (
+              <p className="text-xs text-muted-foreground mt-1">{format(Number(quickAmount))}</p>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 flex gap-3">
+          <Button size="sm" className="font-body">Open Full Request</Button>
+          <Button size="sm" variant="outline" className="font-body">Save Draft</Button>
+        </div>
+      </div>
 
       <div className="mb-6">
         <h2 className="font-display text-2xl font-semibold text-foreground">
@@ -137,6 +207,10 @@ export function AuditDashboard() {
                 showDetails
                 actions={
                   <div className="flex flex-col gap-3">
+                    <div className="p-3 bg-secondary/50 rounded-lg text-center">
+                      <p className="font-body text-xs text-muted-foreground">Total Amount</p>
+                      <p className="font-display text-xl font-semibold text-foreground">{format(request.price * request.quantity)}</p>
+                    </div>
                     <div className="w-48">
                       <p className="font-body text-xs text-muted-foreground mb-1.5">
                         Compliance Score
@@ -150,7 +224,7 @@ export function AuditDashboard() {
                         onClick={() =>
                           setExpandedId(expandedId === request.id ? null : request.id)
                         }
-                        className="font-body"
+                        className="font-body transition-transform duration-200 ease-out hover:-translate-y-[1px]"
                       >
                         {expandedId === request.id ? (
                           <>
@@ -167,7 +241,7 @@ export function AuditDashboard() {
                       <Button
                         size="sm"
                         onClick={() => handleVerify(request)}
-                        className="font-body bg-success hover:bg-success/90 text-success-foreground"
+                        className="font-body bg-success hover:bg-success/90 text-success-foreground transition-transform duration-200 ease-out hover:-translate-y-[1px]"
                       >
                         <Check className="mr-1.5 h-4 w-4" />
                         Verify
@@ -176,7 +250,7 @@ export function AuditDashboard() {
                         size="sm"
                         variant="outline"
                         onClick={() => setFlagRequest(request)}
-                        className="font-body text-warning hover:bg-warning hover:text-warning-foreground"
+                        className="font-body text-warning hover:bg-warning hover:text-warning-foreground transition-transform duration-200 ease-out hover:-translate-y-[1px]"
                       >
                         <Flag className="mr-1.5 h-4 w-4" />
                         Flag
@@ -192,6 +266,20 @@ export function AuditDashboard() {
           ))}
         </div>
       )}
+
+      {/* Past Approvals */}
+      <div className="mt-8">
+        <h3 className="font-display text-lg font-semibold text-foreground mb-3">Past Approvals</h3>
+        {approvedRequests.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No approvals yet.</div>
+        ) : (
+          <div className="space-y-3">
+            {approvedRequests.map((r) => (
+              <RequestCard key={r.id} request={r} />
+            ))}
+          </div>
+        )}
+      </div>
 
       <RejectionModal
         isOpen={!!flagRequest}

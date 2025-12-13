@@ -1,124 +1,109 @@
 import { motion } from 'framer-motion';
-import { Calendar, User, Building2, DollarSign, FileText } from 'lucide-react';
-import { ProcurementRequest } from '@/context/AppContext';
-import { StatusBadge } from './StatusBadge';
-import { cn } from '@/lib/utils';
+import { Clock, FileText, MoreVertical, FileCheck, Eye } from 'lucide-react'; 
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+// HELPER: Safely format Firestore Timestamps
+const formatDate = (dateInput: any) => {
+  if (!dateInput) return 'Just now';
+  if (typeof dateInput.toDate === 'function') {
+    return dateInput.toDate().toLocaleDateString();
+  }
+  if (dateInput instanceof Date) {
+    return dateInput.toLocaleDateString();
+  }
+  return 'Recent';
+};
 
 interface RequestCardProps {
-  request: ProcurementRequest;
+  request: any;
   onClick?: () => void;
-  actions?: React.ReactNode;
-  showDetails?: boolean;
-  className?: string;
+  onViewMemo?: (e: React.MouseEvent) => void; // New prop for direct memo viewing
+  isRequesterView?: boolean;
 }
 
-export function RequestCard({
-  request,
-  onClick,
-  actions,
-  showDetails = false,
-  className,
-}: RequestCardProps) {
+export function RequestCard({ request, onClick, onViewMemo, isRequesterView = false }: RequestCardProps) {
+  
+  const statusColors = {
+    PENDING_PROCUREMENT: 'bg-yellow-50 text-yellow-700 border-yellow-200 ring-yellow-500/10',
+    APPROVED: 'bg-green-50 text-green-700 border-green-200 ring-green-500/10',
+    REJECTED: 'bg-red-50 text-red-700 border-red-200 ring-red-500/10',
+    AUDIT: 'bg-purple-50 text-purple-700 border-purple-200 ring-purple-500/10',
+  };
+
+  const hasMemo = request.memo || request.memoFile || request.attachments?.length > 0;
+
   return (
     <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className={cn(
-        'bg-card border border-border rounded-lg p-5 hover:border-foreground/20 transition-colors',
-        onClick && 'cursor-pointer',
-        className
-      )}
+      whileHover={{ y: -4, boxShadow: "0 10px 30px -10px rgba(0,0,0,0.1)" }}
       onClick={onClick}
+      className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm transition-all cursor-pointer group relative overflow-hidden"
     >
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="font-display text-lg font-semibold text-foreground truncate">
-              {request.title}
-            </h3>
-            <StatusBadge status={request.status} />
+      {/* Top Section */}
+      <div className="flex justify-between items-start mb-5">
+        <div className="flex gap-4">
+          {/* Bigger Icon */}
+          <div className="h-14 w-14 rounded-2xl bg-blue-50/80 border border-blue-100 flex items-center justify-center text-blue-600 shadow-sm">
+            {hasMemo ? <FileCheck size={28} /> : <FileText size={28} />}
           </div>
-
-          <p className="font-body text-sm text-muted-foreground mb-3 line-clamp-2">
-            {request.description}
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <DollarSign className="h-4 w-4" />
-              <span className="font-body font-medium text-foreground">
-                ${request.price.toLocaleString()}
-              </span>
-              {request.quantity > 1 && (
-                <span className="text-muted-foreground">× {request.quantity}</span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <User className="h-4 w-4" />
-              <span className="font-body">{request.requester}</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              <span className="font-body">{request.department}</span>
-            </div>
-
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span className="font-body">
-                {request.createdAt.toLocaleDateString()}
-              </span>
-            </div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-900 leading-tight mb-1">{request.title}</h3>
+            <p className="text-sm text-gray-500 line-clamp-1">{request.description}</p>
           </div>
-
-          {showDetails && request.memo && (
-            <div className="mt-4 p-4 bg-card border border-border rounded-lg shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="h-10 w-10 rounded-lg bg-accent-red/10 flex items-center justify-center flex-shrink-0">
-                  <FileText className="h-5 w-5 text-accent-red" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-body text-sm font-medium text-foreground">
-                      Justification_Memo.pdf
-                    </span>
-                    <span className="font-body text-xs text-muted-foreground">
-                      {request.memoFile ? request.memoFile : 'AI Generated'}
-                    </span>
-                  </div>
-                  <p className="font-body text-xs text-muted-foreground line-clamp-2">
-                    {request.memo}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {showDetails && request.paymentReceipt && (
-            <div className="mt-3 p-3 bg-success/5 border border-success/20 rounded-lg">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-success" />
-                <span className="font-body text-sm text-success">
-                  Receipt: {request.paymentReceipt}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {showDetails && request.rejectionReason && (
-            <div className="mt-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
-              <span className="font-body text-sm text-destructive">
-                Rejection Reason: {request.rejectionReason}
-              </span>
-            </div>
-          )}
         </div>
+        
+        {/* Status Badge (Top Right) */}
+        <Badge 
+          variant="outline" 
+          className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ring-1 ${statusColors[request.status as keyof typeof statusColors] || 'bg-gray-50 text-gray-600'}`}
+        >
+          {request.status?.replace('_', ' ') || 'PENDING'}
+        </Badge>
+      </div>
 
-        {actions && (
-          <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>
+      {/* Middle Section: Stats */}
+      <div className="flex items-center gap-6 mb-6 p-4 bg-gray-50/50 rounded-xl border border-gray-100/50">
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Amount</p>
+          <p className="font-mono text-lg font-bold text-gray-700">
+            <span className="text-gray-400 text-sm mr-1">{request.currency || 'NGN'}</span>
+            {request.price?.toLocaleString() || request.amount?.toLocaleString()}
+          </p>
+        </div>
+        <div className="w-px h-8 bg-gray-200" />
+        <div>
+          <p className="text-[10px] text-gray-400 uppercase tracking-widest font-semibold mb-1">Requested On</p>
+          <div className="flex items-center gap-1.5 text-sm font-medium text-gray-600">
+            <Clock size={14} className="text-gray-400" />
+            <span>{formatDate(request.createdAt)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Actions */}
+      <div className="flex items-center justify-between mt-2 pt-2">
+        <div className="flex items-center gap-2">
+           {/* VIEW MEMO BUTTON */}
+           {hasMemo && (
+             <Button 
+               variant="outline" 
+               size="sm" 
+               className="h-9 gap-2 rounded-lg border-blue-200 text-blue-700 hover:bg-blue-50 hover:text-blue-800 font-medium transition-colors"
+               onClick={(e) => {
+                 e.stopPropagation(); // Prevent opening the main card click
+                 if (onViewMemo) onViewMemo(e);
+               }}
+             >
+               <Eye size={16} />
+               View Memo
+             </Button>
+           )}
+        </div>
+        
+        {!isRequesterView && (
+           <Button variant="ghost" size="icon" className="h-9 w-9 text-gray-400 hover:text-gray-700">
+             <MoreVertical size={18} />
+           </Button>
         )}
       </div>
     </motion.div>

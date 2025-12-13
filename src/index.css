@@ -13,7 +13,8 @@
     --popover: 0 0% 100%;
     --popover-foreground: 220 13% 18%;
 
-    --primary: 220 13% 8%;
+    /* Primary set to brand red #fe0000 */
+    --primary: 0 100% 50%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 14% 96%;
@@ -108,21 +109,23 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    @apply bg-background text-foreground antialiased text-[17px] sm:text-[18px];
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 500;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Times New Roman', Times, serif;
+    font-weight: 600;
   }
 }
 
 @layer components {
   .font-display {
-    font-family: 'Playfair Display', serif;
+    font-family: 'Times New Roman', Times, serif;
   }
 
   .font-body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Times New Roman', Times, serif;
   }
 }

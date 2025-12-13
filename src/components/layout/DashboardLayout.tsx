@@ -15,6 +15,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
+import Footer from '@/components/layout/Footer';
+import CurrencyToggle from '@/components/shared/CurrencyToggle';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -36,6 +38,9 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'new-request', label: 'New Request', icon: FilePlus },
+  { id: 'past-requests', label: 'Past Requests', icon: FilePlus },
+  { id: 'anomaly', label: 'Price Anomaly', icon: Shield },
+  { id: 'vendors', label: 'Vendor Finder', icon: Shield },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
@@ -47,7 +52,7 @@ export function DashboardLayout({
   onViewChange,
   showNewRequest = false,
 }: DashboardLayoutProps) {
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
@@ -58,6 +63,12 @@ export function DashboardLayout({
   const handleNavClick = (id: string) => {
     if (id === 'new-request') {
       onNewRequest();
+    } else if (id === 'past-requests') {
+      navigate('/requests-history');
+    } else if (id === 'anomaly') {
+      navigate('/tools/anomaly');
+    } else if (id === 'vendors') {
+      navigate('/tools/vendors');
     } else {
       onViewChange(id);
     }
@@ -167,10 +178,14 @@ export function DashboardLayout({
           </div>
 
           {/* User Info */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
+            {/* Currency Toggle */}
+            <div className="hidden md:block">
+              <CurrencyToggle />
+            </div>
             <div className="text-right hidden sm:block">
-              <p className="font-body text-sm font-medium text-foreground">{user?.name}</p>
-              <p className="font-body text-xs text-muted-foreground">{user?.role && roleLabels[user.role]}</p>
+              <p className="font-body text-sm font-medium text-foreground">{profile?.name}</p>
+              <p className="font-body text-xs text-muted-foreground">{profile?.role && roleLabels[profile.role]}</p>
             </div>
             <div className="h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
               <User className="h-5 w-5 text-muted-foreground" />
@@ -179,7 +194,7 @@ export function DashboardLayout({
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-8 overflow-auto">
+        <main className="flex-1 p-4 sm:p-5 lg:p-8 overflow-auto">
           <motion.div
             key={currentView}
             initial={{ opacity: 0, y: 10 }}
@@ -189,6 +204,7 @@ export function DashboardLayout({
             {children}
           </motion.div>
         </main>
+        <Footer />
       </div>
     </div>
   );

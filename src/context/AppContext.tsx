@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { fetchRequestsByRole, createRequest } from '@/lib/repositories/requests';
+import { useAuth } from '@/context/AuthContext';
 
 export type RequestStatus = 
   | 'DRAFT' 
@@ -109,15 +111,21 @@ interface AppProviderProps {
 
 export function AppProvider({ children, initialRole = 'requester' }: AppProviderProps) {
   const [currentRole, setCurrentRole] = useState<UserRole>(initialRole);
-  const [requests, setRequests] = useState<ProcurementRequest[]>(initialRequests);
+  const [requests, setRequests] = useState<ProcurementRequest[]>([]);
 
-  const addRequest = (request: Omit<ProcurementRequest, 'id' | 'createdAt'>) => {
-    const newRequest: ProcurementRequest = {
-      ...request,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-    };
-    setRequests(prev => [newRequest, ...prev]);
+  const { profile } = useAuth();
+
+  useEffect(() => {
+    // Load Firestore requests when profile is available
+    (async () => {
+      const list = await fetchRequestsByRole(profile?.role || '');
+      setRequests(list);
+    })();
+  }, [profile?.role]);
+
+  const addRequest = async (request: Omit<ProcurementRequest, 'id' | 'createdAt'>) => {
+    const id = await createRequest(request);
+    setRequests(prev => [{ ...request, id, createdAt: new Date() } as ProcurementRequest, ...prev]);
   };
 
   const updateRequest = (id: string, updates: Partial<ProcurementRequest>) => {

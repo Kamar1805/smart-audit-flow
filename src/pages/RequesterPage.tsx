@@ -52,19 +52,31 @@ function RequesterContent() {
 }
 
 export default function RequesterPage() {
-  const { user, isAuthenticated } = useAuth();
+  // FIX 1: Get 'profile' and 'loading' from context
+  const { isAuthenticated, profile, loading } = useAuth();
+
+  // FIX 2: Handle loading state first to prevent premature redirects
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  if (user?.role !== 'requester') {
+  // FIX 3: Check 'profile.role', NOT 'user.role'
+  if (profile?.role !== 'requester') {
     const roleRoutes: Record<string, string> = {
       procurement: '/procurement',
       audit: '/audit',
       finance: '/finance',
     };
-    return <Navigate to={roleRoutes[user?.role || 'requester'] || '/login'} replace />;
+    // Redirect based on the actual profile role
+    return <Navigate to={roleRoutes[profile?.role || ''] || '/login'} replace />;
   }
 
   return (

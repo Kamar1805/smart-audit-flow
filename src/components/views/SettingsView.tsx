@@ -44,9 +44,10 @@ export function SettingsView() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
-          Settings
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="font-display text-2xl font-semibold text-foreground">Settings</h2>
+          <span className="h-1 w-16 rounded bg-gradient-to-r from-primary/60 to-primary/10 animate-pulse" />
+        </div>
         <p className="font-body text-sm text-muted-foreground mt-1">
           Manage your account preferences
         </p>

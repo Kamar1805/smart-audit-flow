@@ -42,15 +42,15 @@ export function InstructionGuide({ role }: InstructionGuideProps) {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
-        className="bg-secondary/50 border border-border rounded-lg p-4 mb-6"
+        className="bg-secondary/50 border border-border rounded-lg p-4 sm:p-5 mb-6"
       >
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
           <div className="flex-1">
-            <h3 className="font-body font-medium text-foreground text-sm mb-1">
+            <h3 className="font-body font-medium text-foreground text-sm sm:text-base mb-1">
               {instruction.title} Guide
             </h3>
-            <p className="font-body text-sm text-muted-foreground">
+            <p className="font-body text-sm sm:text-[0.95rem] text-muted-foreground">
               {instruction.description}
             </p>
           </div>
