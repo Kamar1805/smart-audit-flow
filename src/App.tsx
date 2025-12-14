@@ -18,6 +18,7 @@ import RequesterPage from "./pages/RequesterPage";
 import ProcurementPage from "./pages/ProcurementPage";
 import AuditPage from "./pages/AuditPage";
 import FinancePage from "./pages/FinancePage";
+import ExecutivesPage from "./pages/ExecutivesPage";
 
 // Other Pages
 import PastRequestsPage from "./pages/PastRequests";
@@ -116,11 +117,18 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            <Route 
+              path="/executives" 
+              element={
+                <ProtectedRoute allow={["executive"]}>
+                  <ExecutivesPage />
+                </ProtectedRoute>
+              } 
+            />
 
             {/* Shared Protected Pages */}
             <Route path="/requests-history" element={<PastRequestsPage />} />
             <Route path="/tools/anomaly" element={<ToolIframePage />} />
-            <Route path="/tools/vendors" element={<ToolIframePage />} />
 
             {/* Catch-All */}
             <Route path="*" element={<NotFound />} />

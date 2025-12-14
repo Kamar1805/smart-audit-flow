@@ -1,161 +1,218 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Upload, Sparkles, FileText, Loader2, Download, AlertCircle } from 'lucide-react';
+import { X, Upload, Sparkles, Loader2, Download, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useApp } from '@/context/AppContext';
-import { useCurrency } from '@/context/CurrencyContext';
 import { jsPDF } from "jspdf";
 import { useAuth } from '@/context/AuthContext';
+import { createMemo } from '@/lib/memos';
+import { generateMemoHTML } from '@/lib/memoTemplate'; 
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { toast } from 'sonner';
 
-// Logic Helpers
-import { generateMemoLetter } from '@/lib/ai';
-import { extractMemoFromPDF } from '@/lib/pdfExtract';
-import { createMemo } from '@/lib/memos';
+// --- AI CONFIG ---
+const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || '';
+const genAI = new GoogleGenerativeAI(apiKey);
+
+// *** FIX: Use correct model name ***
+const MODEL_NAME = 'gemini-flash-latest'; 
 
 interface NewRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+// Helper to format currency
+const formatMoney = (amount: number, currency: string) => {
+  return new Intl.NumberFormat('en-NG', { style: 'currency', currency: currency }).format(amount);
+};
+
+// *** FIX: Robust JSON cleaner to prevent syntax errors ***
+const cleanJson = (text: string) => {
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
 export function NewRequestModal({ isOpen, onClose }: NewRequestModalProps) {
   const { addRequest } = useApp();
-  const { format } = useCurrency(); // We might use this for display, but local state for form is better
   const { profile } = useAuth();
 
-  // TABS: 'ai' = Fill form manually & generate. 'upload' = Upload PDF to auto-fill.
   const [activeTab, setActiveTab] = useState<'ai' | 'upload'>('ai');
-  
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isExtracting, setIsExtracting] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
-  const [generatedMemo, setGeneratedMemo] = useState<string | null>(null);
-  const [extractError, setExtractError] = useState<string | null>(null);
+  const [generatedHtml, setGeneratedHtml] = useState<string | null>(null); 
 
-  // Consolidated Form Data
+  // --- FORM DATA STATE ---
   const [formData, setFormData] = useState({
-    title: '',          // "Request Title" / Subject
+    to: 'GMD',              
+    title: '',              
     department: profile?.department || '',
-    quantity: 1,
-    price: 0,           // Unit Price
     currency: 'NGN' as 'NGN' | 'USD' | 'EUR' | 'GBP',
-    description: '',    // Justification
+    description: '',        
     vendor: '',
+    items: [                
+      { desc: '', quantity: 1, price: 0 }
+    ]
   });
 
-  // --- CLEAN TEXT HELPER (Removes weird markdown) ---
-  const cleanText = (text: string) => {
-    if (!text) return '';
-    return text
-      .replace(/\*\*/g, '')         // Remove bold
-      .replace(/##/g, '')           // Remove headings
-      .replace(/[|]/g, '')          // Remove table pipes
-      .replace(/^\s*[-:]{3,}\s*$/gm, '') // Remove table dividers
-      .trim();
+  // Calculate Total on the fly
+  const totalCost = formData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+  // --- ITEM HANDLERS ---
+  const handleAddItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      items: [...prev.items, { desc: '', quantity: 1, price: 0 }]
+    }));
   };
 
-  // --- PDF DOWNLOAD HELPER ---
-  const handleDownloadPDF = () => {
-    if (!generatedMemo) return;
-    const doc = new jsPDF();
-    const cleanContent = cleanText(generatedMemo);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    const splitText = doc.splitTextToSize(cleanContent, 180);
-    doc.text(splitText, 15, 20);
-    doc.save(`${formData.title || 'procurement_memo'}.pdf`);
+  const handleRemoveItem = (index: number) => {
+    const newItems = [...formData.items];
+    newItems.splice(index, 1);
+    setFormData(prev => ({ ...prev, items: newItems }));
   };
 
-  // --- AI GENERATION LOGIC ---
+  const handleItemChange = (index: number, field: 'desc' | 'quantity' | 'price', value: any) => {
+    const newItems = [...formData.items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setFormData(prev => ({ ...prev, items: newItems }));
+  };
+
+  // --- 1. AI GENERATION LOGIC ---
   const handleGenerateMemo = async () => {
+    // Basic Validation
+    if (!formData.title || formData.items.some(i => !i.desc || !i.price)) {
+      toast.error("Please fill in the Subject and all Item details.");
+      return;
+    }
+    
+    // Prevent double clicks
+    if (isGenerating) return;
+
     setIsGenerating(true);
     try {
-      if (!formData.title) throw new Error('Title is required');
+      const model = genAI.getGenerativeModel({ model: MODEL_NAME });
       
-      const aiText = await generateMemoLetter({
-        title: formData.title,
-        department: formData.department,
-        requesterName: profile?.name || 'Staff Member',
-        justification: formData.description,
-        amount: formData.price * formData.quantity, // Total Cost
-        quantity: formData.quantity,
-        currency: formData.currency,
-        vendor: formData.vendor,
-      });
+      const itemsListText = formData.items.map(i => `- ${i.quantity}x ${i.desc} @ ${i.price}`).join('\n');
 
-      setGeneratedMemo(cleanText(aiText));
-    } catch (err) {
+      const prompt = `
+        Act as a professional procurement officer. 
+        I need to generate a formal internal memo for a request.
+        
+        Details:
+        - To: ${formData.to}
+        - Subject: ${formData.title}
+        - Department: ${formData.department}
+        - Items Requested:
+        ${itemsListText}
+        - Total Cost: ${formData.currency} ${totalCost}
+        - User Context: ${formData.description}
+        
+        Please generate the content for these 3 specific sections of a formal memo:
+        1. "Background": A brief context of why these items are needed.
+        2. "Justification": A persuasive argument for efficiency/productivity/security.
+        3. "Prayer": A formal closing request stating exactly what is being asked for (include the total amount in words).
+        
+        Output ONLY valid JSON format like this:
+        {
+          "background": "...",
+          "justification": "...",
+          "prayer": "..."
+        }
+      `;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      
+      // *** FIX: Clean the JSON string before parsing ***
+      const jsonStr = cleanJson(text);
+      
+      const aiData = JSON.parse(jsonStr);
+
+      // GENERATE HTML
+      const memoData = {
+        to: formData.to, 
+        from: formData.department || "Staff", 
+        through: "Procurement Department",
+        attention: "Audit and Internal Control",
+        subject: formData.title,
+        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        background: aiData.background,
+        justification: aiData.justification,
+        prayer: aiData.prayer,
+        items: formData.items.map(i => ({
+          desc: i.desc,
+          price: Number(i.price),
+          qty: Number(i.quantity),
+          amount: Number(i.price) * Number(i.quantity)
+        })),
+        total: totalCost,
+        currency: formData.currency
+      };
+
+      const finalHtml = generateMemoHTML(memoData);
+      setGeneratedHtml(finalHtml); 
+      toast.success("Memo generated successfully!");
+
+    } catch (err: any) {
       console.error('AI Gen Error', err);
-      // Simple fallback if AI fails
-      setGeneratedMemo(`TO: Procurement\nSUBJECT: ${formData.title}\n\nPlease procure ${formData.quantity}x ${formData.title}.\nJustification: ${formData.description}`);
+      
+      // *** ROBUST ERROR HANDLING ***
+      if (err.message?.includes('429') || err.message?.includes('quota')) {
+        toast.error("AI Rate Limit Reached. Please wait 30 seconds.", { duration: 5000 });
+      } else if (err instanceof SyntaxError) {
+        toast.error("AI returned invalid format. Retrying...", { duration: 3000 });
+      } else {
+        toast.error("Failed to generate memo. Please try again.", { duration: 4000 });
+      }
+
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // --- PDF UPLOAD & EXTRACTION LOGIC ---
-  const processUploadedFile = async (file: File) => {
-    if (file.type !== 'application/pdf') return;
-    
-    setIsExtracting(true);
-    setExtractError(null);
-    setUploadedFile(file.name);
+  // --- 2. DOWNLOAD PDF ---
+  const handleDownloadPDF = () => {
+    if (!generatedHtml) return;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = generatedHtml;
+    document.body.appendChild(tempDiv);
 
-    try {
-      const extracted = await extractMemoFromPDF(file);
-      
-      // If we got basically nothing, show error
-      if (!extracted.subject && !extracted.amount && !extracted.body) {
-        throw new Error("Could not read data from PDF");
-      }
-
-      // Auto-fill the form with extracted data
-      setFormData(prev => ({
-        ...prev,
-        title: extracted.subject || prev.title,
-        description: extracted.body || prev.description,
-        price: typeof extracted.amount === 'number' ? extracted.amount : prev.price,
-        vendor: extracted.vendor || prev.vendor,
-        currency: (extracted.currency as any) || prev.currency,
-      }));
-
-      // Switch back to "AI View" so user can see the filled form
-      setActiveTab('ai'); 
-
-    } catch (err) {
-      console.error("PDF Extract Error", err);
-      setExtractError("Could not extract details. Please fill the form manually.");
-      setUploadedFile(null); // Reset file if failed
-    } finally {
-      setIsExtracting(false);
-    }
+    const doc = new jsPDF('p', 'pt', 'a4');
+    doc.html(tempDiv.firstChild as HTMLElement, {
+      callback: function (pdf) {
+        pdf.save(`${formData.title.replace(/\s+/g, '_')}_Memo.pdf`);
+        document.body.removeChild(tempDiv);
+      },
+      x: 10, y: 10, width: 575, windowWidth: 800
+    });
   };
 
-  // --- FINAL SUBMIT (FIXED) ---
+  // --- 3. FINAL SUBMIT ---
   const handleSubmit = async () => {
     try {
-      const totalCost = formData.price * formData.quantity;
-      
-      // 1. Add to Local App State (Use null, NOT undefined)
+      if (!formData.title || totalCost <= 0) {
+        toast.error("Please complete the form first.");
+        return;
+      }
+
       addRequest({
         title: formData.title,
         description: formData.description,
-        quantity: formData.quantity,
-        price: formData.price,
+        quantity: formData.items.length,
+        price: totalCost,
         status: 'PENDING_PROCUREMENT',
         requester: profile?.name || 'User',
         department: formData.department,
-        memo: generatedMemo || null,       
-        memoFile: uploadedFile || null,    
+        memo: generatedHtml || null,
+        memoFile: uploadedFile || null,
       });
 
-      // 2. Add to Firestore
       if (profile?.uid) {
         await createMemo({
           title: formData.title,
-          body: generatedMemo || formData.description,
+          body: generatedHtml || formData.description,
           amount: totalCost,
           currency: formData.currency,
           attachments: uploadedFile ? [{ name: uploadedFile }] : [], 
@@ -166,18 +223,12 @@ export function NewRequestModal({ isOpen, onClose }: NewRequestModalProps) {
         });
       }
 
-      // 3. SUCCESS MESSAGE
-      // If you have a toast component, use: toast.success("Request submitted successfully!");
-      alert("✅ Request successfully submitted to Procurement!"); 
-
-      // Reset & Close
-      setGeneratedMemo(null);
-      setUploadedFile(null);
+      toast.success('Request submitted successfully', { duration: 3500 });
       onClose();
 
     } catch (error) {
       console.error("Submit failed", error);
-      alert("❌ Failed to submit request. Please try again.");
+      toast.error('Failed to submit request', { duration: 4000 });
     }
   };
 
@@ -187,202 +238,198 @@ export function NewRequestModal({ isOpen, onClose }: NewRequestModalProps) {
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4 font-sans"
         onClick={onClose}
       >
         <motion.div
-          initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }}
-          className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+          initial={{ scale: 0.98, y: 20 }} animate={{ scale: 1, y: 0 }}
+          className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-100"
           onClick={e => e.stopPropagation()}
         >
-          {/* 1. TOP HEADER & TABS */}
-          <div className="bg-gray-50 border-b border-gray-100">
-            <div className="flex items-center justify-between p-4 pb-2">
-              <h2 className="text-lg font-semibold text-gray-800">New Request</h2>
-              <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded-full text-gray-500"><X size={20}/></button>
+          {/* HEADER */}
+          <div className="bg-white border-b border-gray-100 p-6 flex items-center justify-between sticky top-0 z-10">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">New Procurement Request</h2>
+              <p className="text-gray-500 text-sm mt-0.5">Fill in the details to generate your memo</p>
             </div>
-            
-            {/* TAB SWITCHER */}
-            <div className="flex px-4 gap-4">
-              <button
-                onClick={() => setActiveTab('ai')}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                  activeTab === 'ai' 
-                    ? 'border-blue-600 text-blue-600' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Sparkles size={16} />
-                AI MEMO GENERATOR
-              </button>
-              <button
-                onClick={() => setActiveTab('upload')}
-                className={`pb-3 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-                  activeTab === 'upload' 
-                    ? 'border-blue-600 text-blue-600' 
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <Upload size={16} />
-                MANUAL MEMO UPLOAD
-              </button>
-            </div>
+            <button onClick={onClose} className="p-2 hover:bg-red-50 rounded-full text-gray-400 hover:text-[#fe0000] transition-colors">
+              <X size={24}/>
+            </button>
           </div>
 
-          {/* 2. MAIN CONTENT AREA (Scrollable) */}
-          <div className="p-6 overflow-y-auto flex-1">
+          {/* TABS */}
+          <div className="px-6 border-b border-gray-100 flex gap-8">
+            <button 
+              onClick={() => setActiveTab('ai')} 
+              className={`pb-4 text-sm font-bold tracking-wide border-b-2 transition-all flex items-center gap-2 ${activeTab === 'ai' ? 'border-[#fe0000] text-[#fe0000]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              <Sparkles size={18} /> AI MEMO GENERATOR
+            </button>
+            <button 
+              onClick={() => setActiveTab('upload')} 
+              className={`pb-4 text-sm font-bold tracking-wide border-b-2 transition-all flex items-center gap-2 ${activeTab === 'upload' ? 'border-[#fe0000] text-[#fe0000]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            >
+              <Upload size={18} /> UPLOAD EXISTING PDF
+            </button>
+          </div>
+
+          {/* CONTENT AREA */}
+          <div className="p-6 overflow-y-auto flex-1 bg-gray-50/30">
             
-            {/* --- MANUAL UPLOAD VIEW --- */}
+            {/* --- UPLOAD TAB --- */}
             {activeTab === 'upload' && (
-              <div className="flex flex-col items-center justify-center h-full py-8 animate-in fade-in zoom-in-95 duration-200">
-                 <div className="border-2 border-dashed border-gray-200 rounded-xl p-10 w-full text-center hover:bg-gray-50 transition-colors relative">
-                    <input 
-                      type="file" 
-                      accept=".pdf"
-                      onChange={(e) => e.target.files?.[0] && processUploadedFile(e.target.files[0])}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                    {isExtracting ? (
-                      <div className="flex flex-col items-center">
-                        <Loader2 className="h-10 w-10 text-blue-500 animate-spin mb-4" />
-                        <p className="text-sm text-gray-600">Scanning PDF for details...</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="bg-blue-50 p-4 rounded-full inline-flex mb-4">
-                          <Upload className="h-8 w-8 text-blue-600" />
-                        </div>
-                        <h3 className="text-sm font-medium text-gray-900">Click to Upload Memo PDF</h3>
-                        <p className="text-xs text-gray-500 mt-1">We will extract the details automatically.</p>
-                      </>
-                    )}
-                 </div>
-                 {extractError && (
-                   <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2">
-                     <AlertCircle size={16} />
-                     {extractError}
-                   </div>
-                 )}
+              <div className="h-full flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-200 rounded-2xl bg-white hover:bg-gray-50 transition-colors">
+                 <input type="file" accept=".pdf" className="hidden" id="pdf-upload" />
+                 <label htmlFor="pdf-upload" className="cursor-pointer flex flex-col items-center">
+                    <div className="h-16 w-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                      <Upload className="h-8 w-8 text-[#fe0000]" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">Upload Memo PDF</h3>
+                    <p className="text-gray-500 text-sm mt-2 max-w-xs text-center">Drag and drop your signed memo here or click to browse</p>
+                 </label>
               </div>
             )}
 
-            {/* --- AI GENERATOR / FORM VIEW --- */}
+            {/* --- AI FORM TAB --- */}
             {activeTab === 'ai' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+              <div className="space-y-8">
                 
-                {/* Section: Core Details */}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Request Title</label>
+                {/* 1. Header Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Memo To</label>
                     <Input 
-                      placeholder="e.g. MacBook Pro for New Interns" 
-                      value={formData.title}
-                      onChange={e => setFormData({...formData, title: e.target.value})}
-                      className="font-medium"
+                      placeholder="e.g. GMD, Managing Director" 
+                      className="h-12 border-gray-200 focus:border-[#fe0000] focus:ring-[#fe0000] bg-white text-base"
+                      value={formData.to} 
+                      onChange={e => setFormData({...formData, to: e.target.value})} 
                     />
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     {/* Unit Price */}
-                     <div className="md:col-span-1">
-                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Est. Price</label>
-                       <div className="flex">
-                         <select 
-                           className="bg-gray-50 border border-gray-200 rounded-l-md px-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                           value={formData.currency}
-                           onChange={e => setFormData({...formData, currency: e.target.value as any})}
-                         >
-                           <option>NGN</option>
-                           <option>USD</option>
-                           <option>EUR</option>
-                           <option>GBP</option>
-                         </select>
-                         <Input 
-                           type="number" 
-                           placeholder="0.00"
-                           className="rounded-l-none"
-                           value={formData.price || ''}
-                           onChange={e => setFormData({...formData, price: Number(e.target.value)})}
-                         />
-                       </div>
-                     </div>
-
-                     {/* Quantity */}
-                     <div>
-                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Quantity</label>
-                       <Input 
-                         type="number" 
-                         min="1"
-                         value={formData.quantity}
-                         onChange={e => setFormData({...formData, quantity: parseInt(e.target.value) || 1})}
-                       />
-                     </div>
-
-                     {/* Total Calculation Display (Read Only) */}
-                     <div>
-                       <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Total Cost</label>
-                       <div className="h-10 flex items-center px-3 bg-gray-50 border border-gray-200 rounded-md text-gray-700 font-mono text-sm">
-                         {formData.currency} {(formData.price * formData.quantity).toLocaleString()}
-                       </div>
-                     </div>
-                  </div>
-
-                  {/* Justification */}
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Justification</label>
-                    <Textarea 
-                      placeholder="Please tell us why you need this item..." 
-                      className="resize-none min-h-[80px]"
-                      value={formData.description}
-                      onChange={e => setFormData({...formData, description: e.target.value})}
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Subject / Title</label>
+                    <Input 
+                      placeholder="e.g. Purchase of IT Equipment" 
+                      className="h-12 border-gray-200 focus:border-[#fe0000] focus:ring-[#fe0000] bg-white text-base"
+                      value={formData.title} 
+                      onChange={e => setFormData({...formData, title: e.target.value})} 
                     />
+                  </div>
+                </div>
+
+                {/* 2. Items List */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-end">
+                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Items Requested</label>
+                      <span className="text-xs font-medium text-gray-400">Total: {formatMoney(totalCost, formData.currency)}</span>
                   </div>
                   
-                  {/* Generate Button */}
+                  <div className="space-y-3">
+                    {formData.items.map((item, index) => (
+                      <div key={index} className="flex gap-3 items-start animate-in fade-in slide-in-from-left-4">
+                        <div className="flex-1">
+                          <Input 
+                            placeholder="Item Description" 
+                            className="h-12 bg-white"
+                            value={item.desc}
+                            onChange={e => handleItemChange(index, 'desc', e.target.value)}
+                          />
+                        </div>
+                        <div className="w-24">
+                          <Input 
+                            type="number" 
+                            min="1"
+                            placeholder="Qty" 
+                            className="h-12 bg-white text-center"
+                            value={item.quantity}
+                            onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 0)}
+                          />
+                        </div>
+                        <div className="w-32">
+                          <Input 
+                            type="number" 
+                            placeholder="Price" 
+                            className="h-12 bg-white text-right"
+                            value={item.price || ''}
+                            onChange={e => handleItemChange(index, 'price', Number(e.target.value))}
+                          />
+                        </div>
+                        {formData.items.length > 1 && (
+                          <button 
+                            onClick={() => handleRemoveItem(index)}
+                            className="h-12 w-12 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
                   <Button 
-                    onClick={handleGenerateMemo}
-                    disabled={isGenerating || !formData.title}
-                    variant="secondary"
-                    className="w-full bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200"
+                    variant="outline" 
+                    onClick={handleAddItem}
+                    className="w-full border-dashed border-gray-300 text-gray-500 hover:border-[#fe0000] hover:text-[#fe0000] hover:bg-red-50 h-12"
                   >
-                    {isGenerating ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : <Sparkles className="mr-2 h-4 w-4" />}
-                    {generatedMemo ? 'Regenerate Memo' : 'Generate Formal Memo with AI'}
+                    <Plus size={16} className="mr-2" /> Add Another Item
                   </Button>
                 </div>
 
-                {/* --- MEMO PREVIEW --- */}
-                {generatedMemo && (
-                  <motion.div 
-                    initial={{opacity: 0, height: 0}} animate={{opacity: 1, height: 'auto'}}
-                    className="bg-gray-50 rounded-lg border border-gray-200 overflow-hidden"
+                {/* 3. Justification */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Why is this needed?</label>
+                  <Textarea 
+                    placeholder="Provide a brief context for the AI to write your justification..." 
+                    className="min-h-[100px] resize-none border-gray-200 focus:border-[#fe0000] focus:ring-[#fe0000] bg-white text-base p-4"
+                    value={formData.description} 
+                    onChange={e => setFormData({...formData, description: e.target.value})} 
+                  />
+                </div>
+                
+                {/* Generate Button */}
+                <div className="pt-2">
+                  <Button 
+                    onClick={handleGenerateMemo} 
+                    disabled={isGenerating} 
+                    className="w-full h-14 bg-gray-900 hover:bg-black text-white text-lg font-medium shadow-lg hover:shadow-xl transition-all"
                   >
-                    <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
-                      <span className="text-xs font-bold text-gray-500 uppercase">Memo Preview</span>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-blue-600" onClick={handleDownloadPDF}>
-                        <Download size={14} className="mr-1"/> Download PDF
+                    {isGenerating ? <Loader2 className="animate-spin mr-2"/> : <Sparkles className="mr-2 fill-yellow-400 text-yellow-400"/>}
+                    {generatedHtml ? 'Regenerate Memo Content' : 'Generate Formal Memo with AI'}
+                  </Button>
+                </div>
+
+                {/* MEMO PREVIEW */}
+                {generatedHtml && (
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                    <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-green-500" />
+                        <span className="text-sm font-bold text-gray-700 uppercase">Preview Ready</span>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-9 gap-2 text-[#fe0000] border-red-100 hover:bg-red-50" onClick={handleDownloadPDF}>
+                        <Download size={16}/> Download PDF
                       </Button>
                     </div>
-                    <div className="p-4">
-                      <pre className="whitespace-pre-wrap font-sans text-sm text-gray-700 leading-relaxed">
-                        {cleanText(generatedMemo)}
-                      </pre>
+                    {/* Render HTML Safely */}
+                    <div className="p-8 bg-gray-100/50 overflow-auto max-h-[400px]">
+                        <div className="bg-white shadow-sm p-2 mx-auto max-w-[600px] origin-top scale-[0.8]">
+                          <div dangerouslySetInnerHTML={{ __html: generatedHtml }} />
+                        </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
-
               </div>
             )}
           </div>
 
-          {/* 3. FOOTER ACTIONS */}
-          <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+          {/* FOOTER */}
+          <div className="p-6 border-t border-gray-100 bg-white flex justify-end gap-4 z-10 sticky bottom-0">
+            <Button variant="ghost" onClick={onClose} className="h-12 px-6 text-gray-500 hover:text-gray-900">Cancel</Button>
             <Button 
               onClick={handleSubmit} 
-              disabled={!formData.title}
-              className="bg-[#fe0000] hover:bg-[#d50000] text-white"
+              disabled={!generatedHtml && !uploadedFile} 
+              className="h-12 px-8 bg-[#fe0000] hover:bg-[#d50000] text-white font-bold text-base shadow-lg shadow-red-200 transition-transform hover:-translate-y-1"
             >
-              Submit Request
+              Submit Final Request
             </Button>
           </div>
 
