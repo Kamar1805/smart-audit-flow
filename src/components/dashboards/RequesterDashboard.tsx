@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence as FramerPresence } from 'framer-motion';
 import { 
   Plus, 
-  XCircle, 
   X, 
   CheckCircle2, 
   Clock, 
@@ -15,8 +14,10 @@ import {
   UploadCloud, 
   Timer, 
   CornerUpRight,
-  AlertCircle,
-  FileCheck
+  XCircle,
+  Info,
+  UserCircle2,
+  Briefcase
 } from 'lucide-react'; 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,9 +39,9 @@ type AnyReq = any;
 // HELPER: GENERATE CLEAN PDF CONTENT FOR SHARING
 // ----------------------------------------------------------------------
 const getPdfContent = (request: AnyReq) => {
-  const content = typeof request.memo === 'string'
-      ? request.memo
-      : (request.memo?.body || request.description || '');
+  const content = typeof request.body === 'string'
+      ? request.body
+      : (request.memo || request.memo?.body || request.description || '');
       
   return `
     <div style="font-family: Helvetica, sans-serif; padding: 40px; color: #000; background: #fff; width: 550px;">
@@ -62,9 +63,9 @@ const getPdfContent = (request: AnyReq) => {
 // ----------------------------------------------------------------------
 const getIframeContent = (request: AnyReq) => {
   const rawContent = (
-    typeof request.memo === 'string'
-      ? request.memo
-      : (request.memo?.body || request.description || '<h3>No memo content available</h3>')
+    typeof request.body === 'string'
+      ? request.body
+      : (request.memo || request.memo?.body || request.description || '<h3>No memo content available</h3>')
   ).toString();
 
   return `
@@ -128,7 +129,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     if (!profile?.uid) return;
 
     // Listen to MY requests live from Firestore
-    // This replaces the static AppContext fetch
     const unsub = listenUserMemos(profile.uid, (list) => {
       setRequests(list);
       setLoading(false);
@@ -160,16 +160,15 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
 
   // 2. Open Forward Modal & Load Executives
   const openForward = async (req: AnyReq) => {
-    setViewingRequest(req);
+    setViewingRequest(req); 
     setForwardOpen(true);
     try {
       const list = await listExecutives();
-      // Safely map ID to UID to prevent "undefined" errors
       setExecutives(list.map(u => ({ 
         uid: (u as any).id || u.uid, 
         name: u.name, 
         department: u.department, 
-        position: u.position 
+        position: (u as any).position || (u as any).jobTitle || 'Executive' 
       })));
     } catch (e) {
       console.error(e);
@@ -183,8 +182,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     setIsUploading(true);
     
     try {
-        // In a real app, upload 'purchaseReceipt' to Firebase Storage here
-        // For now, we create a local URL or mock string
         const mockUrl = purchaseReceipt ? URL.createObjectURL(purchaseReceipt) : "mock_receipt_url";
         
         await confirmItemPurchase(confirmingReq.id, mockUrl);
@@ -205,7 +202,7 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     setConfirmModalOpen(true);
   };
 
-  // 4. Countdown Timer Logic (72 Hours)
+  // 4. Countdown Timer Logic
   const getCountdown = (paymentDate?: string) => {
      if (!paymentDate) return "72h 00m";
      const paidAt = new Date(paymentDate).getTime();
@@ -225,41 +222,30 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     const status = (req.status as string)?.toLowerCase() || '';
     const route = ((req as any).route as string)?.toLowerCase() || '';
 
-    // A. Purchase Verified (Final Step)
     if (req.purchaseReceiptUrl) {
         return { value: 100, label: 'Purchase Verified', color: 'bg-blue-600', sublabel: 'Receipt Uploaded & Verified', icon: ShoppingBag };
     }
-
-    // B. Payment Made (Requester needs to buy)
     if (status === 'paid' || status === 'completed' || route === 'completed') {
         return { value: 100, label: 'Payment Received', color: 'bg-green-600', sublabel: 'Funds Disbursed - Please Buy Item', icon: CheckCircle2 };
     }
-    
-    // C. Rejected
     if (status === 'rejected') {
         const reason = (req as any).rejectionReason || (req as any).rejectedBy || 'Approver';
         return { value: 100, label: 'Rejected', color: 'bg-red-500', sublabel: `Reason: ${reason}`, icon: XCircle };
     }
-
-    // D. Active Routes
     if (route === 'finance') {
         if (status === 'approved') return { value: 95, label: 'Processing Payment', color: 'bg-green-500', sublabel: 'Sending Funds...', icon: Clock };
         return { value: 80, label: 'Finance Processing', color: 'bg-blue-600', sublabel: 'Pending Final Payment', icon: Clock };
     }
-    
     if (route === 'audit') {
         return { value: 50, label: 'Audit Review', color: 'bg-orange-500', sublabel: 'Compliance Check', icon: Clock };
     }
-    
     if (route === 'procurement') {
         return { value: 20, label: 'Procurement Review', color: 'bg-[#fe0000]', sublabel: 'Pending Approval', icon: Clock };
     }
-
-    // E. Draft / Default
     return { value: 5, label: 'Submitted', color: 'bg-gray-400', sublabel: 'Pending Processing', icon: Clock };
   };
 
-  // 6. Filter Requests into Active vs Past
+  // 6. Filter Requests
   const { activeRequests, pastRequests } = useMemo(() => {
     const active: AnyReq[] = [];
     const past: AnyReq[] = [];
@@ -267,8 +253,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     for (const r of requests) {
       const status = (r.status as string)?.toLowerCase();
       const route = ((r as any).route as string)?.toLowerCase();
-      
-      // A request is "Past" if it is fully paid/completed OR rejected
       const isCompleted = status === 'paid' || status === 'completed' || route === 'completed' || status === 'rejected';
       
       if (isCompleted) {
@@ -277,11 +261,8 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
           active.push(r);
       }
     }
-    
     return { 
-        // Sort active by newest creation date
         activeRequests: active.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)), 
-        // Sort past by newest update (e.g. recent payment)
         pastRequests: past.sort((a,b) => (b.updatedAt ? new Date(b.updatedAt).getTime() : 0) - (a.updatedAt ? new Date(a.updatedAt).getTime() : 0)) 
     };
   }, [requests]);
@@ -302,10 +283,9 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
     URL.revokeObjectURL(url);
   };
 
-  // 8. Share Action (PDF Generation)
+  // 8. Share Action
   const handleShareAction = async (phone: string, request: AnyReq) => {
     setIsSharing(true);
-    // Create hidden div for PDF rendering
     const tempDiv = document.createElement('div');
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px'; 
@@ -321,7 +301,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
             const safeTitle = request.title.replace(/[^a-z0-9]/gi, '_');
             const file = new File([blob], `${safeTitle}.pdf`, { type: 'application/pdf' });
 
-            // Check for Mobile Native Sharing
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
               await navigator.share({
                 files: [file],
@@ -330,7 +309,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
               });
               toast.success("Opening Share Sheet...");
             } else {
-              // Desktop Fallback: Download + WhatsApp Link
               pdf.save(`${safeTitle}.pdf`);
               const message = `Hi, I sent you a memo on SAPS: *${request.title}*. \n\n(I have downloaded the PDF file to your device, kindly attach it here.)`;
               const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
@@ -378,7 +356,7 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
         </Button>
       </div>
 
-      {/* --- ACTIVE REQUESTS SECTION --- */}
+      {/* --- ACTIVE REQUESTS --- */}
       <section className="space-y-4">
         <div className="flex items-center gap-2">
           <h3 className="font-display text-lg font-semibold text-gray-900">Active</h3>
@@ -386,18 +364,13 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
         </div>
 
         {activeRequests.length === 0 ? (
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
-            className="text-center py-14 bg-gray-50 rounded-2xl border border-dashed border-gray-200"
-          >
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-14 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm border border-gray-100">
               <Plus className="h-6 w-6 text-gray-400" />
             </div>
             <p className="font-body text-sm text-gray-600">No active requests.</p>
             <div className="mt-4">
-              <Button onClick={onNewRequest} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
-                Create Request
-              </Button>
+              <Button onClick={onNewRequest} variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">Create Request</Button>
             </div>
           </motion.div>
         ) : (
@@ -418,7 +391,7 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
         )}
       </section>
 
-      {/* --- PAST REQUESTS SECTION --- */}
+      {/* --- PAST REQUESTS --- */}
       <section className="mt-10 space-y-4">
         <div className="flex items-center gap-2">
           <h3 className="font-display text-lg font-semibold text-gray-900">Past Requests</h3>
@@ -439,12 +412,6 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
                     onShareMemo={() => openShare(request)}
                     onForwardMemo={() => openForward(request)}
                  />
-                 
-                 {/* PURCHASE VERIFICATION BUTTON
-                    Only shows if:
-                    1. Status is Paid/Completed
-                    2. NO Receipt uploaded yet
-                 */}
                  {((request.status === 'paid' || request.status === 'completed' || request.route === 'completed') && !request.purchaseReceiptUrl) && (
                     <div className="mt-[-1rem] mx-4 p-3 bg-red-50 border border-red-100 rounded-b-xl flex justify-between items-center relative z-0 animate-in slide-in-from-top-2">
                        <div className="flex items-center gap-2 text-red-700 text-xs font-bold">
@@ -466,7 +433,7 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
       </section>
 
       {/* ---------------------------------------------------------------------- */}
-      {/* MODALS SECTION */}
+      {/* MODALS */}
       {/* ---------------------------------------------------------------------- */}
 
       {/* 1. VIEW MEMO MODAL */}
@@ -491,7 +458,7 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
         )}
       </FramerPresence>
 
-      {/* 2. FORWARD MODAL */}
+      {/* 2. FORWARD MODAL (UPDATED WITH RED THEME) */}
       <FramerPresence>
         {forwardOpen && viewingRequest && (
            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -500,17 +467,49 @@ export function RequesterDashboard({ onNewRequest }: RequesterDashboardProps) {
                 <h3 className="font-bold flex items-center gap-2"><CornerUpRight size={18} className="text-gray-400"/> Forward Memo</h3>
                 <button onClick={() => setForwardOpen(false)}><X className="h-5 w-5"/></button>
               </div>
-              <div className="p-5 max-h-96 overflow-y-auto">
-                 {executives.map((e, idx) => (
-                    <div key={idx} className="flex justify-between items-center p-3 hover:bg-gray-50 border-b">
-                       <div><p className="font-bold text-sm">{e.name}</p><p className="text-xs text-gray-500">{e.position}</p></div>
-                       <Button size="sm" onClick={async () => {
-                          await shareMemoToExecutive(viewingRequest, e.uid, e.position);
-                          toast.success('Forwarded successfully');
-                          setForwardOpen(false);
-                       }}>Forward</Button>
+
+              {/* RED INSTRUCTION BOX */}
+              <div className="bg-red-50 p-4 border-b border-red-100">
+                <div className="flex gap-3">
+                    <div className="mt-0.5 text-[#fe0000]"><Info size={18} /></div>
+                    <div className="text-sm text-red-900">
+                        <p className="font-semibold mb-1">Executive Fast-Track</p>
+                        <p className="opacity-90 leading-relaxed">
+                            You can forward memo to the executives and if they approve, your memo goes straight to the finance.
+                        </p>
                     </div>
-                 ))}
+                </div>
+              </div>
+
+              <div className="max-h-96 overflow-y-auto">
+                 {executives.length === 0 ? (
+                    <div className="p-8 text-center text-gray-500">No executives found.</div>
+                 ) : (
+                    executives.map((e, idx) => (
+                        <div key={idx} className="flex justify-between items-center p-4 hover:bg-gray-50 border-b last:border-0 transition-colors">
+                           <div className="flex items-center gap-3">
+                               <div className="h-10 w-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-500">
+                                   <UserCircle2 size={24} />
+                               </div>
+                               <div>
+                                   <p className="font-bold text-sm text-gray-900">{e.name}</p>
+                                   {/* --- RED HIGHLIGHTED POSITION --- */}
+                                   <p className="text-xs text-[#fe0000] font-bold uppercase tracking-wide mt-0.5 flex items-center gap-1">
+                                      <Briefcase size={10} />
+                                      {e.position || 'Executive'}
+                                   </p>
+                               </div>
+                           </div>
+                           <Button size="sm" className="bg-gray-900 text-white hover:bg-black" onClick={async () => {
+                              await shareMemoToExecutive(viewingRequest, e.uid, e.position);
+                              toast.success(`Forwarded to ${e.name}`);
+                              setForwardOpen(false);
+                           }}>
+                               Forward
+                           </Button>
+                        </div>
+                    ))
+                 )}
               </div>
             </motion.div>
            </div>

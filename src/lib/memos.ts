@@ -43,6 +43,10 @@ export type Memo = {
   rejectedBy?: string;
   paymentDate?: string;
 
+  // --- NEW: EXECUTIVE TRACKING ---
+  forwardedBy?: string; // e.g., "GMD", "Chairman" - Visible to Finance
+  // -------------------------------
+
   // --- NEW: PURCHASE VERIFICATION ---
   purchaseConfirmedAt?: string; // When they uploaded the receipt
   purchaseReceiptUrl?: string;  // The proof of purchase
@@ -111,7 +115,11 @@ export type SharedMemo = {
   sharedByUid: string;
   sharedByName: string;
   sharedAt: number;
-  status: 'pending'|'approved'|'forwarded';
+  status: 'pending' | 'approved' | 'forwarded' | 'rejected';
+  
+  // History Fields
+  actionDate?: string;      // When the Exec approved/rejected
+  rejectionReason?: string; // Reason if rejected
 };
 
 export async function shareMemoToExecutive(memo: Memo, executiveUid: string, position?: string) {
@@ -141,15 +149,57 @@ export function listenExecutiveSharedMemos(uid: string, cb: (list: SharedMemo[])
   });
 }
 
-export async function executiveApproveAndForward(sharedMemoId: string) {
+// UPDATED: Approve & Forward (Tags it as coming from Executive)
+export async function executiveApproveAndForward(sharedMemoId: string, executivePosition: string) {
   const smRef = doc(db, 'sharedMemos', sharedMemoId);
-  await updateDoc(smRef, { status: 'approved' });
+  
+  // 1. Mark Shared Memo as Forwarded locally (for Exec History)
+  await updateDoc(smRef, { 
+    status: 'forwarded',
+    actionDate: new Date().toISOString() 
+  });
+  
   const snap = await getDoc(smRef);
   const data = snap.data() as SharedMemo;
+
   if (data?.memoId) {
     const memoRef = doc(db, 'memos', data.memoId);
-    await updateDoc(memoRef, { route: 'finance', status: 'approved' });
-    await updateDoc(smRef, { status: 'forwarded' });
+    
+    // 2. Move original Memo to Finance
+    // We add 'lastActionBy' so Finance knows it came from the GMD/Chairman
+    await updateDoc(memoRef, { 
+      route: 'finance', 
+      status: 'pending', // Pending Finance's own approval/payment
+      auditApprovedAt: new Date().toISOString(), // Treat Exec approval as passing the audit check
+      forwardedBy: executivePosition || 'Executive' // <--- VISIBLE TO FINANCE
+    });
+  }
+}
+
+// NEW: Reject Memo (Sends back to history)
+export async function executiveRejectMemo(sharedMemoId: string, reason: string) {
+  const smRef = doc(db, 'sharedMemos', sharedMemoId);
+  
+  // 1. Mark Shared Memo as Rejected locally
+  await updateDoc(smRef, { 
+    status: 'rejected',
+    actionDate: new Date().toISOString(),
+    rejectionReason: reason
+  });
+
+  const snap = await getDoc(smRef);
+  const data = snap.data() as SharedMemo;
+
+  if (data?.memoId) {
+    const memoRef = doc(db, 'memos', data.memoId);
+    
+    // 2. Update original Memo status to Rejected
+    await updateDoc(memoRef, { 
+      status: 'rejected',
+      rejectedAt: new Date().toISOString(),
+      rejectedBy: 'Executive',
+      rejectionReason: reason
+    });
   }
 }
 

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { 
   CheckCircle2, Wallet, Loader2, BrainCircuit, XCircle, Upload, 
   Clock, Building2, ArrowUpRight, TrendingUp, ArrowRight, Eye,
-   AlertCircle,
+  AlertCircle, Crown, Briefcase // Added Crown/Briefcase icons
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -146,7 +146,6 @@ export function FinanceDashboard() {
 
   // --- ACTIONS ---
 
-  // *** FIX: Added missing openPayModal function ***
   const openPayModal = (request: any) => {
     setSelectedRequest(request);
     // Pre-fill amount with request amount
@@ -308,7 +307,7 @@ export function FinanceDashboard() {
          </div>
       </div>
 
-      {/* 4. PENDING ACTIONS */}
+      {/* 4. PENDING ACTIONS (WITH BADGE LOGIC) */}
       <div className="space-y-6">
          <h2 className="text-xl font-display font-bold text-gray-900 flex items-center gap-2">
             Pending Approvals <Badge className="bg-red-50 text-red-600 hover:bg-red-50">{pendingPayments.length}</Badge>
@@ -321,8 +320,24 @@ export function FinanceDashboard() {
                </div>
             ) : (
                pendingPayments.map((req) => (
-                  <div key={req.id} className="group">
+                  <div key={req.id} className="group relative">
+                     {/* --- EXECUTIVE BADGE INTEGRATION --- */}
+                     {req.forwardedBy && (
+                       <div className="absolute top-4 right-4 z-10">
+                         <Badge className="bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100 px-3 py-1 gap-1.5 shadow-sm transition-colors">
+                            {/* Crown if Chair/GMD, else Briefcase */}
+                            {['Chairman', 'GMD', 'CEO'].some(role => req.forwardedBy?.includes(role)) 
+                                ? <Crown size={14} className="fill-purple-200" /> 
+                                : <Briefcase size={14} />
+                            }
+                            Approved by {req.forwardedBy}
+                         </Badge>
+                       </div>
+                     )}
+                     
                      <RequestCard request={req} />
+                     
+                     {/* ACTIONS FOOTER */}
                      <div className="mt-[-1.5rem] mx-6 p-4 pt-8 bg-white border-x border-b border-gray-100 rounded-b-3xl shadow-sm flex justify-between items-center relative z-0">
                         <div className="flex items-center gap-2 text-sm text-gray-500">
                            <Building2 size={16} />
@@ -346,7 +361,7 @@ export function FinanceDashboard() {
          </div>
       </div>
 
-      {/* 5. PAYMENT HISTORY */}
+      {/* 5. PAYMENT HISTORY TABLE (ADDED) */}
       <div className="space-y-6 pt-8 border-t border-gray-100">
          <div className="flex items-center gap-3">
             <div className="h-8 w-8 bg-green-50 text-green-600 rounded-full flex items-center justify-center"><CheckCircle2 size={16} /></div>

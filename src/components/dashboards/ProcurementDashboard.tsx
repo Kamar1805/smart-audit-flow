@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 // --- CONFIG ---
 const apiKey = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || '';
 const genAI = new GoogleGenerativeAI(apiKey);
-const MODEL_NAME = 'gemini-1.5-flash';
+const MODEL_NAME = 'gemini-flash-latest';
 
 // --- HELPER: CLEAN JSON (Fixes SyntaxError) ---
 const cleanJson = (text: string) => {

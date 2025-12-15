@@ -1,7 +1,6 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, serverTimestamp } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -12,9 +11,20 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+// Helpful runtime validation to avoid cryptic SDK errors
+function assertFirebaseEnv(cfg: Record<string, unknown>) {
+  const missing = Object.entries(cfg)
+    .filter(([_, v]) => !v || (typeof v === 'string' && (v as string).trim() === ''))
+    .map(([k]) => k);
+  if (missing.length) {
+    const msg = `Firebase config missing: ${missing.join(', ')}. Ensure .env contains VITE_FIREBASE_* and restart dev server.`;
+    // Throwing makes the error visible early; adjust to console.error if preferred
+    throw new Error(msg);
+  }
+}
 
+assertFirebaseEnv(firebaseConfig as any);
+
+const app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const ts = serverTimestamp;
-export const storage = getStorage(app);

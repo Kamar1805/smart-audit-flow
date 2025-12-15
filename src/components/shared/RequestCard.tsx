@@ -1,4 +1,4 @@
-// RequestCard.tsx (Final Fixed Version with Robust View Memo Logic)
+// RequestCard.tsx
 
 import React from 'react'; 
 import { motion } from 'framer-motion';
@@ -18,7 +18,6 @@ interface ProgressData {
 interface RequestCardProps {
   request: any;
   onClick?: () => void;
-  // These props trigger the modal/forward logic in the parent (RequesterDashboard)
   onViewMemo?: (e: React.MouseEvent) => void;
   onShareMemo?: (e: React.MouseEvent) => void;
   onForwardMemo?: (e: React.MouseEvent) => void; 
@@ -43,29 +42,19 @@ export function RequestCard({
   progress 
 }: RequestCardProps) {
   
-  // *** FIX 1: EXPANDED MEMO CHECK FOR VISIBILITY ***
-  // Checks if memo content (string or object body) exists, or if there's an attachment.
+  // *** FIXED: CHECK FOR 'body' INSTEAD OF 'memo' ***
   const hasMemoContent = 
-    (typeof request.memo === 'string' && request.memo.length > 0) || 
-    (typeof request.memo?.body === 'string' && request.memo.body.length > 0) ||
+    (typeof request.body === 'string' && request.body.length > 0) || // Check 'body' (Correct field from memos.ts)
+    (typeof request.memo === 'string' && request.memo.length > 0) || // Keep legacy check just in case
     (request.attachments && request.attachments.length > 0);
 
   const hasMemo = !!hasMemoContent;
-  
-  // DEBUG NOTE: If buttons are still hidden, remove the 'const hasMemo = !!hasMemoContent;' 
-  // line and replace it with 'const hasMemo = true;' to confirm this is a data issue.
 
   const statusStr = String(request.status || '').toLowerCase();
   const isRejected = statusStr === 'rejected';
 
-  // *** FIX 3: ICON RENDERING ***
   const ProgressIcon = progress?.icon; 
 
-  // --- FUNCTIONALITY HANDLERS (Proxy to Parent Props) ---
-
-  // Since the parent's props (onViewMemo, onShareMemo, onForwardMemo) 
-  // already handle the complex logic (modal opening, PDF generation), 
-  // we just need to ensure the click event is stopped and the prop is called.
   const handleView = (e: React.MouseEvent) => { e.stopPropagation(); onViewMemo?.(e); };
   const handleShare = (e: React.MouseEvent) => { e.stopPropagation(); onShareMemo?.(e); };
   const handleForward = (e: React.MouseEvent) => { e.stopPropagation(); onForwardMemo?.(e); };
@@ -118,50 +107,45 @@ export function RequestCard({
 
         {/* --- ACTIONS SECTION --- */}
         <div className="flex items-center gap-2 pt-2">
-          {/* VIEW BUTTON */}
+          
           {hasMemo && onViewMemo && (
-            <Button
-              aria-label="View Memo"
-              title="View Memo"
-              variant="outline"
-              size="sm"
-              className="h-9 gap-2 text-[#fe0000] border-red-100 hover:bg-red-50"
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-9 gap-2 text-[#fe0000] border-red-100 hover:bg-red-50" 
               onClick={handleView}
             >
               <Eye size={16} /> View Memo
             </Button>
           )}
-
-          {/* SHARE BUTTON */}
-          {hasMemo && onShareMemo && (
-            <Button
-              aria-label="Share Memo"
-              title="Share Memo as PDF"
-              size="sm"
-              className="h-9 gap-2 bg-green-600 hover:bg-green-700 text-white border-none shadow-sm"
-              onClick={handleShare}
-            >
-              <Share2 size={16} /> Share
-            </Button>
-          )}
-
-          {/* FORWARD BUTTON */}
-          {hasMemo && onForwardMemo && (
-            <Button
-              aria-label="Forward Memo"
-              title="Forward Memo to Executives"
-              size="sm"
-              variant="outline"
-              className="h-9 gap-2 hover:bg-gray-100"
-              onClick={handleForward}
-            >
-              <CornerUpRight size={16} /> Forward
-            </Button>
+          
+          {isRequesterView && hasMemo && (
+            <>
+              {onShareMemo && (
+                <Button 
+                  size="sm" 
+                  className="h-9 gap-2 bg-green-600 hover:bg-green-700 text-white border-none shadow-sm" 
+                  onClick={handleShare}
+                >
+                  <Share2 size={16} /> Share
+                </Button>
+              )}
+              
+              {onForwardMemo && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="h-9 gap-2 hover:bg-gray-100" 
+                  onClick={handleForward}
+                >
+                  <CornerUpRight size={16} /> Forward
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Progress Bar */}
       {progress && (
         <div className="bg-gray-50 border-t border-gray-100 px-6 py-4">
           <div className="flex justify-between items-center mb-2">
